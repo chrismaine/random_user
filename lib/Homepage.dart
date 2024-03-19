@@ -85,4 +85,34 @@ class _HomePageState extends State<HomePage> {
             ),
     );
   }
+
+  Widget _buildUserDetail(
+      {required IconData icon,
+      required String label,
+      required String value}) {
+    Color iconColor =
+        user!['gender'] == 'male' ? Colors.blue : Colors.pink;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
+      child: Row(
+        children: [
+          Icon(icon, color: iconColor),
+          SizedBox(width: 10),
+          Text(
+            '$label: ',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(fontSize: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

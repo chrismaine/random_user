@@ -1,4 +1,25 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        fontFamily: 'Garamond',
+      ),
+      home: HomePage(),
+    );
+  }
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -17,6 +38,12 @@ class _HomePageState extends State<HomePage> {
     'gender': null,
     'picture': {'large': null}
   };
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUser();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,15 +82,12 @@ class _HomePageState extends State<HomePage> {
                   _buildUserDetail(
                     icon: Icons.location_on,
                     label: 'Location',
-                    value:
-                        '${user!['location']['city'] ?? 'Unknown'}, ${user!['location']['country'] ?? 'Unknown'}',
+                    value: '${user!['location']['city'] ?? 'Unknown'}, ${user!['location']['country'] ?? 'Unknown'}',
                   ),
                   _buildUserDetail(
                     icon: Icons.cake,
                     label: 'Age',
-                    value: user!['dob']['age'] != null
-                        ? user!['dob']['age'].toString()
-                        : 'Unknown',
+                    value: user!['dob']['age'] != null ? user!['dob']['age'].toString() : 'Unknown',
                   ),
                   _buildUserDetail(
                     icon: Icons.phone,
@@ -71,9 +95,7 @@ class _HomePageState extends State<HomePage> {
                     value: user!['phone'] ?? 'Unknown',
                   ),
                   _buildUserDetail(
-                    icon: user!['gender'] == 'male'
-                        ? Icons.male
-                        : Icons.female,
+                    icon: user!['gender'] == 'male' ? Icons.male : Icons.female,
                     label: 'Gender',
                     value: user!['gender'] ?? 'Unknown',
                   ),
@@ -86,12 +108,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildUserDetail(
-      {required IconData icon,
-      required String label,
-      required String value}) {
-    Color iconColor =
-        user!['gender'] == 'male' ? Colors.blue : Colors.pink;
+  Widget _buildUserDetail({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    Color iconColor = user!['gender'] == 'male' ? Colors.blue : Colors.pink;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
       child: Row(
@@ -114,5 +136,20 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
     );
+  }
+
+  void fetchUser() async {
+    print("fetchUser called");
+    const url = 'https://randomuser.me/api/';
+    final uri = Uri.parse(url);
+    final response = await http.get(uri);
+    final body = response.body;
+    final json = jsonDecode(body);
+
+    setState(() {
+      user = json['results'][0];
+    });
+
+    print('fetchUser completed');
   }
 }

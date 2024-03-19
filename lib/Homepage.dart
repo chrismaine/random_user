@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:connectivity/connectivity.dart';
+import 'connectivity.dart';
 
 void main() {
   runApp(const MyApp());
@@ -39,10 +41,14 @@ class _HomePageState extends State<HomePage> {
     'picture': {'large': null}
   };
 
+  bool _isConnected = true;
+  bool _isLoading = false;
+
   @override
   void initState() {
     super.initState();
-    fetchUser();
+    _initConnectivity();
+    _subscribeToConnectivityChanges();
   }
 
   @override
@@ -55,65 +61,92 @@ class _HomePageState extends State<HomePage> {
         ),
         centerTitle: true,
       ),
-      body: user != null
-          ? SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  SizedBox(height: 20),
-                  CircleAvatar(
-                    radius: 80,
-                    backgroundImage: user!['picture']['large'] != null
-                        ? NetworkImage(user!['picture']['large'])
-                        : AssetImage('assets/placeholder_image.png')
-                            as ImageProvider,
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator())
+          : _isConnected
+              ? user != null
+                  ? SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(height: 20),
+                          CircleAvatar(
+                            radius: 80,
+                            backgroundImage: user!['picture']['large'] != null
+                                ? NetworkImage(user!['picture']['large'])
+                                : AssetImage('assets/placeholder_image.png')
+                                    as ImageProvider,
+                          ),
+                          SizedBox(height: 15),
+                          Text(
+                            '${user!['name']['first'] ?? 'Unknown'} ${user!['name']['last'] ?? 'User'}',
+                            style: TextStyle(
+                                fontSize: 28, fontWeight: FontWeight.bold),
+                          ),
+                          SizedBox(height: 30),
+                          _buildUserDetail(
+                            icon: Icons.mail,
+                            label: 'Email',
+                            value: user!['email'] ?? 'Unknown',
+                          ),
+                          _buildUserDetail(
+                            icon: Icons.location_on,
+                            label: 'Location',
+                            value:
+                                '${user!['location']['city'] ?? 'Unknown'}, ${user!['location']['country'] ?? 'Unknown'}',
+                          ),
+                          _buildUserDetail(
+                            icon: Icons.cake,
+                            label: 'Age',
+                            value: user!['dob']['age'] != null
+                                ? user!['dob']['age'].toString()
+                                : 'Unknown',
+                          ),
+                          _buildUserDetail(
+                            icon: Icons.phone,
+                            label: 'Contact',
+                            value: user!['phone'] ?? 'Unknown',
+                          ),
+                          _buildUserDetail(
+                            icon: user!['gender'] == 'male'
+                                ? Icons.male
+                                : Icons.female,
+                            label: 'Gender',
+                            value: user!['gender'] ?? 'Unknown',
+                          ),
+                        ],
+                      ),
+                    )
+                  : Center(child: Text("No user data available"))
+              : Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        "No internet connection",
+                        style: TextStyle(fontSize: 20),
+                      ),
+                      SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: fetchUser,
+                        child: Text("Retry"),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 15),
-                  Text(
-                    '${user!['name']['first'] ?? 'Unknown'} ${user!['name']['last'] ?? 'User'}',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 30),
-                  _buildUserDetail(
-                    icon: Icons.mail,
-                    label: 'Email',
-                    value: user!['email'] ?? 'Unknown',
-                  ),
-                  _buildUserDetail(
-                    icon: Icons.location_on,
-                    label: 'Location',
-                    value: '${user!['location']['city'] ?? 'Unknown'}, ${user!['location']['country'] ?? 'Unknown'}',
-                  ),
-                  _buildUserDetail(
-                    icon: Icons.cake,
-                    label: 'Age',
-                    value: user!['dob']['age'] != null ? user!['dob']['age'].toString() : 'Unknown',
-                  ),
-                  _buildUserDetail(
-                    icon: Icons.phone,
-                    label: 'Contact',
-                    value: user!['phone'] ?? 'Unknown',
-                  ),
-                  _buildUserDetail(
-                    icon: user!['gender'] == 'male' ? Icons.male : Icons.female,
-                    label: 'Gender',
-                    value: user!['gender'] ?? 'Unknown',
-                  ),
-                ],
-              ),
-            )
-          : Center(
-              child: CircularProgressIndicator(),
-            ),
+                ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _isConnected ? fetchUser : null,
+        child: Icon(Icons.refresh),
+      ),
     );
   }
 
-  Widget _buildUserDetail({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    Color iconColor = user!['gender'] == 'male' ? Colors.blue : Colors.pink;
+  Widget _buildUserDetail(
+      {required IconData icon,
+      required String label,
+      required String value}) {
+    Color iconColor =
+        user!['gender'] == 'male' ? Colors.blue : Colors.pink;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
       child: Row(
@@ -140,16 +173,50 @@ class _HomePageState extends State<HomePage> {
 
   void fetchUser() async {
     print("fetchUser called");
-    const url = 'https://randomuser.me/api/';
-    final uri = Uri.parse(url);
-    final response = await http.get(uri);
-    final body = response.body;
-    final json = jsonDecode(body);
-
     setState(() {
-      user = json['results'][0];
+      _isLoading = true;
     });
 
-    print('fetchUser completed');
+    try {
+      const url = 'https://randomuser.me/api/';
+      final uri = Uri.parse(url);
+      
+      // Check connectivity before making the API call
+      var isConnected = await ConnectivityService.isConnected();
+      if (!isConnected) {
+        throw Exception('No internet connection');
+      }
+
+      final response = await http.get(uri);
+      final body = response.body;
+      final json = jsonDecode(body);
+
+      setState(() {
+        user = json['results'][0];
+      });
+
+      print('fetchUser completed');
+    } catch (e) {
+      print('Error fetching user: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _initConnectivity() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    setState(() {
+      _isConnected = connectivityResult != ConnectivityResult.none;
+    });
+  }
+
+  void _subscribeToConnectivityChanges() {
+    Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
+      setState(() {
+        _isConnected = result != ConnectivityResult.none;
+      });
+    });
   }
 }
